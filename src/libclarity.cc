@@ -14,12 +14,13 @@
  * NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 
-#include <iostream>
 #include <algorithm>
 #include <cstdint>
 #include <set>
 #include <fstream>
 #include <iterator>
+#include <stdexcept>
+#include <regex>
 #include "clarity.h"
 #include "config.h"
 
@@ -32,17 +33,35 @@ using std::set;
 using std::copy;
 using std::remove_if;
 using std::mismatch;
+using std::regex;
+using std::regex_match;
 
 namespace {
+    /** A regex used to detect all-lowercase strings. */
+    regex lowercase_rx { "^[a-z]+$" };
 
+    /** Our set of known-good words, loaded at runtime from a
+      * dictionary */
     set<string> good_words;
 
-    lstring make_words_from(vvstring board,
-                            uint32_t x,
-                            uint32_t y,
-                            string sofar = "")
+    /** @fn set<string> make_words_from(vvstring board, uint32_t x, uint32_t y, string sofar="")
+      *
+      * @brief Find all words that can be generated from a given
+      * starting point on a board
+      *
+      * @param board A matrix of strings representing the Boggle board
+      * @param x The x-coordinate of the matrix to start searching from
+      * @param y The y-coordinate of the matrix to start searching from
+      * @param sofar The string that has been found so far in the search
+      *
+      * @exception std::out_of_range Only if there's a logic error somewhere
+      * in the code */
+    set<string> make_words_from(vvstring board,
+                                uint32_t x,
+                                uint32_t y,
+                                string sofar = "")
     {
-        lstring wordlist;
+        set<string> wordset;
         uint32_t min_x, min_y, max_x, max_y;
 
         min_x = x > 0 ? x - 1 : x;
@@ -64,7 +83,7 @@ namespace {
 
         auto lookup = good_words.lower_bound(sofar);
         if (lookup == good_words.cend())
-            return wordlist;
+            return wordset;
 
         /* Now that we've found the insertion point into the
          * dictionary, does our word match the beginning of
@@ -82,7 +101,7 @@ namespace {
         auto prefix = mismatch(sofar.begin(), sofar.end(),
             lookup->begin(), lookup->end()).first;
         if (prefix != sofar.end())
-            return wordlist;
+            return wordset;
 
         /* Finally, if the insertion point matches the word
          * we've constructed, then we've got a good word.
@@ -90,7 +109,7 @@ namespace {
          * make from here. */
 
         if (*lookup == sofar)
-            wordlist.emplace_back(sofar);
+            wordset.insert(sofar);
 
         /* End the AI techniques. */
 
@@ -98,31 +117,68 @@ namespace {
 
         for (auto row = min_y ; row <= max_y ; ++row)
             for (auto col = min_x ; col <= max_x ; ++col)
-                if (board.at(row).at(col) != " ")
-                    for (auto word: make_words_from(board, col, row, sofar))
-                        wordlist.emplace_back(word);
-
-        return wordlist;
+                if (board.at(row).at(col) != " ") {
+                    auto found_words = make_words_from(board,
+                                                       col,
+                                                       row,
+                                                       sofar);
+                    wordset.insert(found_words.begin(),
+                                   found_words.end());
+                }
+        return wordset;
     }
 }
 
-const char* NoDictionaryFound::what() noexcept
+/** Returns the string 'no dictionary found' */
+const char* NoDictionaryFound::what() const noexcept
 {
     return "no dictionary found";
 }
 
-list<string> solve(const vvstring& board)
+/** Returns the string 'bad board size' */
+const char* BadBoard::what() const noexcept
+{
+    return "bad board";
+}
+
+lstring solve(const vvstring& board)
 {
     if (good_words.size() == 0) {
         ifstream infile(PKGDATADIR "/wordlist.txt");
         if (not infile) throw NoDictionaryFound();
         good_words = set<string>(iiter(infile), iiter());
     }
+    if (board.size() == 0)
+        throw BadBoard();
+    const auto first_row_size = board.at(0).size();
+    for (const auto& row: board) {
+        if (first_row_size != row.size())
+            throw BadBoard();
+        for (const auto& str: row)
+            if (not regex_match(str, lowercase_rx))
+                throw BadBoard();
+        }
 
-    list<string> wordlist;
+    set<string> wordset;
+
     for (uint32_t row = 0 ; row < board.size() ; ++row)
-        for (uint32_t col = 0 ; col < board.at(row).size() ; ++col)
-            for (auto word: make_words_from(board, col, row))
-                wordlist.emplace_back(word);
-    return wordlist;
+        for (uint32_t col = 0 ; col < board.at(row).size() ; ++col) {
+            try
+            {
+                auto found_words = make_words_from(board, col, row);
+                wordset.insert(found_words.begin(), found_words.end());
+            }
+            catch (const std::out_of_range& oor)
+            {
+#ifdef DEBUG
+                std::cerr << "Caught an out-of-range exception\n";
+#else
+                // pass: let's just hope the next run doesn't raise
+                // an exception!
+#endif
+            }
+        }
+    lstring rv(wordset.begin(), wordset.end());
+    rv.sort();
+    return rv;
 }

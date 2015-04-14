@@ -22,18 +22,22 @@ int main()
     try
     {
         vector<vector<string>> board {
-            { "c", "a", "qu"},
-            { "m", "t", "e" },
-            { "n", "i", "l" },
-            { "g", "f", "j" }
+            { "z", "w", "p", "u", "m", "o", "s" },
+            { "p", "w", "w", "n", "z", "r", "w" },
+            { "c", "d", "h", "q", "d", "p", "e" },
+            { "w", "c", "u", "x", "d", "n", "q" },
+            { "r", "c", "s", "d", "k", "w", "q" },
+            { "i", "c", "m", "p", "r", "x", "x" },
+            { "o", "y", "g", "u", "i", "x", "m" },
         };
 
         for (auto word: solve(board))
             std::cout << word << "\n";
+        return 0;
     }
     catch (std::exception& e)
     {
         std::cerr << e.what() << "\n";
+        return -1;
     }
-    return 0;
 }
