@@ -143,13 +143,29 @@ const char* BadBoard::what() const noexcept
 
 lstring solve(const vvstring& board)
 {
+    /* Always, always, always, always, validate user input before
+     * you begin processing it.  For Clarity there are three conditions
+     * we need to test. */
+
+    /* One: if we can't load the word dictionary, throw an exception
+     * alerting the programmer to the problem. */
+
     if (good_words.size() == 0) {
         ifstream infile(PKGDATADIR "/wordlist.txt");
         if (not infile) throw NoDictionaryFound();
         good_words = set<string>(iiter(infile), iiter());
     }
+
+    /* Two: if we're given an empty board, throw an exception and don't
+     * process it further. */
+
     if (board.size() == 0)
         throw BadBoard();
+
+    /* Three: if the rows are of different sizes, or if the contents
+     * aren't strictly lowercase, throw an exception and don't process
+     * it further. */
+
     const auto first_row_size = board.at(0).size();
     for (const auto& row: board) {
         if (first_row_size != row.size())
@@ -159,10 +175,28 @@ lstring solve(const vvstring& board)
                 throw BadBoard();
         }
 
+    /* Our input is sane and we have our word dictionary.  It should be
+     * all smooth sailing from here, right?
+     *
+     * No, it's not.  Resist the temptation to think "but errors can't
+     * happen here!"  Whenever a programmer says that, he or she is almost
+     * certainly wrong. */
+
+
     set<string> wordset;
 
     for (uint32_t row = 0 ; row < board.size() ; ++row)
         for (uint32_t col = 0 ; col < board.at(row).size() ; ++col) {
+
+            /* Why do we have this try block?  Because make_words_from
+             * accesses the board, and it's theoretically possible that
+             * a bug might result in the function trying to access
+             * outside the board's boundaries.  If that happens a
+             * std::out_of_range exception will be raised.  Since it's
+             * possible that a bug in our code could result in that
+             * exception being raised, it's just prudent programming
+             * to catch it. */
+
             try
             {
                 auto found_words = make_words_from(board, col, row);
@@ -173,8 +207,10 @@ lstring solve(const vvstring& board)
 #ifdef DEBUG
                 std::cerr << "Caught an out-of-range exception\n";
 #else
-                // pass: let's just hope the next run doesn't raise
-                // an exception!
+
+                /* There's nothing the user can do, so just silently
+                 * do nothing. */
+
 #endif
             }
         }

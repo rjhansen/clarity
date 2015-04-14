@@ -35,7 +35,7 @@ int main()
             std::cout << word << "\n";
         return 0;
     }
-    catch (std::exception& e)
+    catch (const std::exception& e)
     {
         std::cerr << e.what() << "\n";
         return -1;
