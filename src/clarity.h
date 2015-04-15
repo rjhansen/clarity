@@ -43,6 +43,8 @@ using std::vector;
   * @exception NoDictionaryFound word dictionary could not be found */
 list<string> solve(const vector<vector<string>>& board);
 
+int boggle_score(const string&);
+
 /** Thrown in the event the dictionary of good words could not be found. */
 class NoDictionaryFound : public std::exception
 {

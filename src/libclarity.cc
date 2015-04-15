@@ -37,12 +37,72 @@ using std::regex;
 using std::regex_match;
 
 namespace {
-    /** A regex used to detect all-lowercase strings. */
-    regex lowercase_rx { "^[a-z]+$" };
-
     /** Our set of known-good words, loaded at runtime from a
       * dictionary */
     set<string> good_words;
+
+    /** @fn int boggle_compare(const string& lhs, const string& rhs)
+      *
+      * Compares two Boggle words to see how they ought be ordered.  Higher
+      * scores go first, and in the case of tied words they will be
+      * lexicographically compared. */
+    bool boggle_compare(const string& lhs, const string& rhs)
+    {
+        auto lhs_score = boggle_score(lhs);
+        auto rhs_score = boggle_score(rhs);
+
+        if (lhs_score > rhs_score)
+            return true;
+        else if (lhs_score < rhs_score)
+            return false;
+        else if (lhs < rhs)
+            return true;
+        else
+            return false;
+    }
+
+    /** @fn void sanity_check(const vector<vector<string>>& board)
+      *
+      * Ensures the board is of non-zero size, rectangular, and contains
+      * only strings matching the regex ["^[a-z]+$"]. */
+    void sanity_check(const vvstring& board)
+    {
+        static regex lowercase_rx { "^[a-z]+$" };
+        /* If we're given an empty board, throw an exception and don't
+         * process it further. */
+
+        if (board.size() == 0)
+            throw BadBoard();
+
+        /* If the rows are of different sizes, or if the contents aren't
+         * strictly lowercase, throw an exception and don't process it
+         * further. */
+
+        const auto first_row_size = board.at(0).size();
+        for (const auto& row: board) {
+            if (first_row_size != row.size())
+                throw BadBoard();
+            for (const auto& str: row)
+                if (not regex_match(str, lowercase_rx))
+                    throw BadBoard();
+        }
+    }
+
+    /** @fn void load_dictionary()
+      *
+      * Loads the dictionary from disk. */
+    void load_dictionary()
+    {
+        /* If we can't load the word dictionary, throw an exception
+         * alerting the programmer to the problem. */
+
+        if (good_words.size() == 0) {
+            ifstream infile(PKGDATADIR "/wordlist.txt");
+            if (not infile) throw NoDictionaryFound();
+            good_words = set<string>(iiter(infile), iiter());
+        }
+    }
+
 
     /** @fn set<string> make_words_from(vvstring board, uint32_t x, uint32_t y, string sofar="")
       *
@@ -141,49 +201,26 @@ const char* BadBoard::what() const noexcept
     return "bad board";
 }
 
+int boggle_score(const string& word)
+{
+    if (word.size() < 3)
+        return 0;
+    else if (word.size() == 3)
+        return 1;
+    else if (word.size() <= 6)
+        return word.size() - 3;
+    else if (word.size() == 7)
+        return 5;
+    else
+        return 11;
+}
+
 lstring solve(const vvstring& board)
 {
-    /* Always, always, always, always, validate user input before
-     * you begin processing it.  For Clarity there are three conditions
-     * we need to test. */
-
-    /* One: if we can't load the word dictionary, throw an exception
-     * alerting the programmer to the problem. */
-
-    if (good_words.size() == 0) {
-        ifstream infile(PKGDATADIR "/wordlist.txt");
-        if (not infile) throw NoDictionaryFound();
-        good_words = set<string>(iiter(infile), iiter());
-    }
-
-    /* Two: if we're given an empty board, throw an exception and don't
-     * process it further. */
-
-    if (board.size() == 0)
-        throw BadBoard();
-
-    /* Three: if the rows are of different sizes, or if the contents
-     * aren't strictly lowercase, throw an exception and don't process
-     * it further. */
-
-    const auto first_row_size = board.at(0).size();
-    for (const auto& row: board) {
-        if (first_row_size != row.size())
-            throw BadBoard();
-        for (const auto& str: row)
-            if (not regex_match(str, lowercase_rx))
-                throw BadBoard();
-        }
-
-    /* Our input is sane and we have our word dictionary.  It should be
-     * all smooth sailing from here, right?
-     *
-     * No, it's not.  Resist the temptation to think "but errors can't
-     * happen here!"  Whenever a programmer says that, he or she is almost
-     * certainly wrong. */
-
-
     set<string> wordset;
+
+    sanity_check(board);
+    load_dictionary();
 
     for (uint32_t row = 0 ; row < board.size() ; ++row)
         for (uint32_t col = 0 ; col < board.at(row).size() ; ++col) {
@@ -215,6 +252,6 @@ lstring solve(const vvstring& board)
             }
         }
     lstring rv(wordset.begin(), wordset.end());
-    rv.sort();
+    rv.sort(boggle_compare);
     return rv;
 }
